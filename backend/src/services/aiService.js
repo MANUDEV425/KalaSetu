@@ -1,73 +1,44 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 
-const geminiApiKey =
-  process.env.GEMINI_API_KEY;
+const geminiApiKey = process.env.GEMINI_API_KEY;
 
 if (!geminiApiKey) {
-  console.warn(
-    'GEMINI_API_KEY is not configured.'
-  );
+  console.warn('GEMINI_API_KEY is not configured.');
 }
 
-const genAI = geminiApiKey
-  ? new GoogleGenerativeAI(geminiApiKey)
+const ai = geminiApiKey
+  ? new GoogleGenAI({
+      apiKey: geminiApiKey,
+    })
   : null;
 
 export async function generateText(prompt) {
-  if (!genAI) {
-    throw new Error(
-      'Gemini AI is not configured.'
-    );
+  if (!ai) {
+    throw new Error('Gemini AI is not configured.');
   }
 
-  const model = genAI.getGenerativeModel({
-    model: 'gemini-3.5-flash-lite',
-  });
+  try {
+    const response =
+      await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt,
+      });
 
-  let lastError;
+    const text = response.text;
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const result =
-        await model.generateContent(prompt);
-
-      const response = result.response;
-      const text = response.text();
-
-      if (!text?.trim()) {
-        throw new Error(
-          'AI returned an empty response.'
-        );
-      }
-
-      return text.trim();
-    } catch (error) {
-      lastError = error;
-
-      const message =
-        error?.message || '';
-
-      const isTemporaryError =
-        message.includes('503') ||
-        message.includes('Service Unavailable');
-     
-
-      if (!isTemporaryError) {
-        throw error;
-      }
-
-      const delay =
-        1000 * Math.pow(2, attempt);
-
-      console.log(
-        `Gemini temporarily unavailable. Retrying in ${delay}ms...`
-      );
-
-      await new Promise((resolve) =>
-        setTimeout(resolve, delay)
+    if (!text?.trim()) {
+      throw new Error(
+        'AI returned an empty response.'
       );
     }
-  }
 
-  throw lastError;
+    return text.trim();
+  } catch (error) {
+    console.error('Gemini API error:', error);
+
+    throw new Error(
+      error?.message ||
+        'Failed to generate AI response.'
+    );
+  }
 }
